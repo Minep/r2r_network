@@ -38,7 +38,7 @@
 #define CHLTYPE_GET(tag) (tag & INFOTAG_CHLTYPE_MASK)
 */
 
-#define SET_TAG(tag,value,mask,shift_bits) (tag & (~mask)) | value << shift_bits
+#define SET_TAG(tag,value,mask,shift_bits) ((tag & (~mask)) | value) << shift_bits
 #define GET_TAG(tag,mask,shift_bits) (tag & mask) >> shift_bits
 
 typedef struct r2r_header_transport header_transport;
@@ -51,6 +51,8 @@ struct r2r_header_transport{
     uint8_t info_tag;
     ip_addr_t ipv4_src;
     ip_addr_t ipv4_dest;
+    uint8_t mac_src[6];
+    uint8_t mac_dest[6];
     // Store in big endian
     uint64_t access_marker[2];
 };

@@ -26,6 +26,9 @@ void r2r_init()
     expanded_key = aes_init(SESSION_KEY_LEN);
 }
 
+/*
+ Create packet from headers and message
+ */
 uint8_t* create_packet(header_transport t_header,header_encryption e_header,
                     header_session s_header, r2r_body body, uint8_t *data, size_t data_size)
 {
