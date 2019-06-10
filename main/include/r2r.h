@@ -2,7 +2,8 @@
 #define INFOTAG_PRORITY_MASK 0x18
 #define INFOTAG_CHLTYPE_MASK 0x07
 
-#define ENCTAG_MASK 0x80
+#define ENCTAG_METHOD_MASK 0x02
+#define ENCTAG_KEYUSED_MASK 0x01
 
 #define PKTTYPE_FORWARD 0x00
 #define PKTTYPE_INCOMING 0X01
@@ -19,6 +20,8 @@
 
 #define ENCTAG_METHOD_AES 0x00
 #define ENCTAG_METHOD_DES 0x01
+#define ENCTAG_KEY_USED 0x00
+#define ENCTAG_KEY_UNUSED 0x01
 
 #define NEED_NEGOTIATION 0xff
 #define NEGOTIATED 0x00
@@ -38,7 +41,7 @@
 #define CHLTYPE_GET(tag) (tag & INFOTAG_CHLTYPE_MASK)
 */
 
-#define SET_TAG(tag,value,mask,shift_bits) ((tag & (~mask)) | value) << shift_bits
+#define SET_TAG(tag,value,mask,shift_bits) (tag & (~mask)) | (value << shift_bits)
 #define GET_TAG(tag,mask,shift_bits) (tag & mask) >> shift_bits
 
 typedef struct r2r_header_transport header_transport;
@@ -49,8 +52,8 @@ typedef struct r2r_body r2r_body;
 #pragma pack(push,1)
 struct r2r_header_transport{
     uint8_t info_tag;
-    ip_addr_t ipv4_src;
-    ip_addr_t ipv4_dest;
+    ip4_addr_t ipv4_src;
+    ip4_addr_t ipv4_dest;
     uint8_t mac_src[6];
     uint8_t mac_dest[6];
     // Store in big endian
@@ -85,7 +88,6 @@ struct r2r_body{
     // TODO Add body definitions
 };
 #pragma pack(pop)
-
 void r2r_init();
 uint8_t* create_packet(header_transport t_header,header_encryption e_header, header_session s_header, r2r_body body, uint8_t *data, size_t data_size);
 void get_transport_header(uint8_t *pkt_data ,header_transport **t_header);

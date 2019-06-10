@@ -20,7 +20,7 @@
 #include "include/utils.h"
 
 
-#define WIFI_SSID "Canterlot Beacon\0"
+#define WIFI_SSID "Canterlot Beacon 2\0"
 #define WIFI_PSWD "ZL2738--FF1725\0"
 #define ESP_AP_SSID "ESP_WIFI_R2R\0"
 #define ESP_AP_PSWD "ESP_WIFI_PWD\0"
@@ -108,14 +108,15 @@ void incoming_pkt_handler(pkt_b* packet)
 {
     printf("\r\n");
     ESP_LOGI(TAG,"Packet recieved, from %s:%i",ipaddr_ntoa(&(packet->ip_address)),packet->port);
-    ESP_LOGI(TAG,"Showing packet content:");
+    ESP_LOGI(TAG,"Showing packet content, size %i bytes",packet->length_of_buff);
     print_formated_hex(packet->data,packet->length_of_buff,16);
     ESP_LOGI(TAG,"Showing transport header:");
-    char bin[9];
-    bin[8]='\0';
-    ESP_LOGI(TAG,"Tag info : %s",int2bin(packet->transport->info_tag,&bin,8));
-    ESP_LOGI(TAG,"destination ip : %s",ipaddr_ntoa(&(packet->transport->ipv4_dest)));
-    ESP_LOGI(TAG,"source ip : %s",ipaddr_ntoa(&(packet->transport->ipv4_src)));
+    ESP_LOGI(TAG,"Tag info : "BYTE_TO_BINARY_PATTERN,BYTE_TO_BINARY(packet->transport->info_tag));
+    ESP_LOGI(TAG,"destination ip : %s",ip4addr_ntoa(&(packet->transport->ipv4_dest)));
+    ESP_LOGI(TAG,"source ip : %s",ip4addr_ntoa(&(packet->transport->ipv4_src)));
+    ESP_LOGI(TAG,"source MAC : "MACSTR, MAC2STR(packet->transport->mac_src));
+    ESP_LOGI(TAG,"destination MAC : "MACSTR, MAC2STR(packet->transport->mac_dest));
+    send_msg(packet->data,packet->length_of_buff,packet->ip_address);
 }
 
 void initialize()
@@ -131,5 +132,7 @@ void app_main()
 {
     flash_init();
     r2r_wifi_init(WIFI_SSID,WIFI_PSWD,ESP_AP_SSID,ESP_AP_PSWD);
-    wifi_begin(WIFI_MODE_APSTA,&event_handler);
+    wifi_begin(WIFI_MODE_STA,&event_handler);
+    initialize();
+    ESP_LOGW(TAG,"The R2R protocol is running, port listening: %i",PORT_R2R);
 }

@@ -11,7 +11,6 @@
 #include "include/r2r.h"
 #include "include/network.h"
 
-#define PORT_R2R 8086
 
 struct netconn *connection;
 
@@ -23,7 +22,7 @@ void (*pkt_incoming_func)(pkt_b*) = NULL;
 void init_connection()
 {
     connection = netconn_new(NETCONN_UDP);
-    netconn_bind(connection,IPADDR_TYPE_ANY,8086);
+    netconn_bind(connection,NULL,8086);
 }
 
 void set_localforward_handler(void* func)
@@ -38,18 +37,23 @@ void set_incoming_handler(void* func)
 
 uint8_t* get_buffer_data(struct netbuf *buffer,size_t *len)
 {
-    size_t alloced = 2048;
+    size_t alloced = 1048;
     uint8_t* buf = malloc(alloced);
     uint8_t* inc_ptr = buf;
     size_t cur_size = 0;
-    uint16_t size;
+    uint16_t size = 0;
+    netbuf_first(buffer);
     do{
+        char* data_buf;
         if(cur_size>alloced)
         {
             realloc(buf,alloced+=1024);
         }
-        inc_ptr+=cur_size;
-        netbuf_data(buffer,&inc_ptr,&size);
+        netbuf_data(buffer,&data_buf,&size);
+        memcpy(buf+cur_size,data_buf,size);
+        /*if(data_buf!=NULL){
+            free(data_buf);
+        } */
         cur_size+=size;
     }
     while(netbuf_next(buffer)>=0);
@@ -63,7 +67,7 @@ uint8_t* get_buffer_data(struct netbuf *buffer,size_t *len)
 TaskHandle_t r2r_net_listen_start()
 {
     TaskHandle_t handler = NULL;
-    xTaskCreate(&udp_loop,"UDP_LISTEN_LOOP_TASK",1000,NULL,1,&handler);
+    xTaskCreate(&udp_loop,"UDP_LISTEN_LOOP_TASK",5000,NULL,1,&handler);
     return handler;
 }
 
@@ -86,6 +90,7 @@ void udp_loop()
             packet->data = data;
             packet->transport = transport_h;
             packet->length_of_buff = length;
+            netbuf_free(buffer);
             switch (pkt_type)
             {
                 case PKTTYPE_INCOMING:

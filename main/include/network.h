@@ -1,3 +1,6 @@
+#define PORT_R2R 8086
+
+
 typedef struct pkt_b pkt_b;
 /* A packet block */
 struct pkt_b{
@@ -13,3 +16,4 @@ void set_incoming_handler(void* func);
 uint8_t* get_buffer_data(struct netbuf *buffer,size_t *len);
 TaskHandle_t r2r_net_listen_start();
 void udp_loop();
+err_t send_msg(void* data, size_t data_len, ip_addr_t destination);
