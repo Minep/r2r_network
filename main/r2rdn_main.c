@@ -18,6 +18,7 @@
 #include "include/nvs_helper.h"
 #include "include/network.h"
 #include "include/utils.h"
+#include "include/node_list.h"
 
 
 #define WIFI_SSID "Canterlot Beacon 2\0"
@@ -64,6 +65,9 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 */
+
+r2r_node* device_nodes;
+TaskHandle_t handler;
 
 static int s_retry_num = 0;
 static void event_handler(void* arg, esp_event_base_t event_base, 
@@ -116,23 +120,25 @@ void incoming_pkt_handler(pkt_b* packet)
     ESP_LOGI(TAG,"source ip : %s",ip4addr_ntoa(&(packet->transport->ipv4_src)));
     ESP_LOGI(TAG,"source MAC : "MACSTR, MAC2STR(packet->transport->mac_src));
     ESP_LOGI(TAG,"destination MAC : "MACSTR, MAC2STR(packet->transport->mac_dest));
-    send_msg(packet->data,packet->length_of_buff,packet->ip_address);
+    //send_msg(packet->data,packet->length_of_buff,packet->ip_address);
 }
 
 void initialize()
 {
-    TaskHandle_t handler;
+    r2r_wifi_init(WIFI_SSID,WIFI_PSWD,ESP_AP_SSID,ESP_AP_PSWD);
+    wifi_begin(WIFI_MODE_STA,&event_handler);
     r2r_init();
     init_connection();
+    node_list_init();
     set_incoming_handler(&incoming_pkt_handler);
+
     handler = r2r_net_listen_start();
+    device_nodes = get_node_list();
 }
 
 void app_main()
 {
     flash_init();
-    r2r_wifi_init(WIFI_SSID,WIFI_PSWD,ESP_AP_SSID,ESP_AP_PSWD);
-    wifi_begin(WIFI_MODE_STA,&event_handler);
     initialize();
     ESP_LOGW(TAG,"The R2R protocol is running, port listening: %i",PORT_R2R);
 }

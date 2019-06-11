@@ -2,6 +2,12 @@
 #define INFOTAG_PRORITY_MASK 0x18
 #define INFOTAG_CHLTYPE_MASK 0x07
 
+#define R2R_OPTS_ANNEXDATA 0x00
+#define R2R_OPTS_CMDS 0x01
+#define R2R_OPTS_RESET 0x02
+#define R2R_OPTS_REPLACE 0x03
+#define R2R_OPTS_ADDNEW 0x04
+
 #define ENCTAG_METHOD_MASK 0x02
 #define ENCTAG_KEYUSED_MASK 0x01
 
@@ -26,27 +32,26 @@
 #define NEED_NEGOTIATION 0xff
 #define NEGOTIATED 0x00
 
+#define USR_TYPE_PEERS 0x00
+#define USR_TYPE_USERS 0xff
+
 #define SESSION_KEY_LEN 128
 
 #define PKTTYPE_BITS 5
 #define PRORITY_BITS 3
 #define CHLTYPE_BITS 0
-/*
-#define PKTTYPE(tag,pkt_type) (tag & (~INFOTAG_PKTTYPE_MASK)) | pkt_type << 5
-#define PRORITY(tag,prority)  (tag & (~INFOTAG_PRORITY_MASK)) | prority << 3
-#define CHLTYPE(tag,chl_type) (tag & (~INFOTAG_CHLTYPE_MASK)) | chl_type
-
-#define PKTTYPE_GET(tag) (tag & INFOTAG_PKTTYPE_MASK) >> 5
-#define PRORITY_GET(tag) (tag & INFOTAG_PRORITY_MASK) >> 3
-#define CHLTYPE_GET(tag) (tag & INFOTAG_CHLTYPE_MASK)
-*/
 
 #define SET_TAG(tag,value,mask,shift_bits) (tag & (~mask)) | (value << shift_bits)
 #define GET_TAG(tag,mask,shift_bits) (tag & mask) >> shift_bits
 
+#define GET_OPT(opts,field) (opts >> field) & 0x01
+#define SET_OPT(opts,field,value) (opts & (~(0x01 << field))) | (value << fields)
+
 typedef struct r2r_header_transport header_transport;
 typedef struct r2r_header_encryption header_encryption;
 typedef struct r2r_header_session header_session;
+typedef struct auth_header header_auth;
+typedef struct verif_header header_verif;
 typedef struct r2r_body r2r_body;
 
 #pragma pack(push,1)
@@ -86,10 +91,40 @@ struct r2r_header_session{
 
 struct r2r_body{
     // TODO Add body definitions
+    uint8_t operations;
+    uint8_t cmds[10];
+    uint8_t cmd_args_offsets[10];
+    uint8_t loop;
+};
+
+struct auth_header
+{
+    char usr_id[8];
+    uint8_t usr_pwd[16];
+    uint8_t usr_type;
+    uint32_t hash;
+    int counter;
+};
+
+struct verif_header
+{
+    uint32_t hash;
+    int counter;
 };
 #pragma pack(pop)
+
 void r2r_init();
-uint8_t* create_packet(header_transport t_header,header_encryption e_header, header_session s_header, r2r_body body, uint8_t *data, size_t data_size);
+void init_packet(uint8_t channel_type);
+int add_to_packet(void *header_or_data, size_t size_of_added_content);
+void deinit_packet();
+
+//uint8_t* create_packet(header_transport t_header,uint8_t encryption_method, header_session s_header, r2r_body body, uint8_t *data, size_t data_size);
+
+size_t get_size_allocated();
+uint8_t* get_packet_created();
 void get_transport_header(uint8_t *pkt_data ,header_transport **t_header);
 void get_enc_header(uint8_t *pkt_data ,header_encryption **e_header);
-void get_sealed(uint8_t *pkt_data, size_t pkt_size, uint8_t enc_method, uint8_t *session_key, header_session **s_header, r2r_body **r2rbody, uint8_t **annex_data);
+void get_verif_header(uint8_t *data, header_verif **verif);
+void get_auth_header(uint8_t *data, header_auth **auth);
+void get_sealed(uint8_t *pkt_data, size_t pkt_size, uint8_t enc_method, uint8_t *session_key, header_session **s_header, uint8_t **rest_data, uint8_t *datalen);
+header_transport* create_tr_header(uint8_t infotag, ip4_addr_t src_addr, ip4_addr_t dest_addr, uint8_t *mac_src, uint8_t *mac_dest, uint64_t *access_marker);

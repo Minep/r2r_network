@@ -8,7 +8,8 @@ struct r2r_node_record
     uint32_t hash_record;
     r2r_node* next;
 };
-
+void node_list_init();
+r2r_node* get_node_list();
 void add_new_node(ip_addr_t ip, uint8_t *mac_addr, uint32_t hash);
 r2r_node* find_avaliable();
 void delte_node(uint8_t *mac_addr);

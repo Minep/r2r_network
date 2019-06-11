@@ -6,6 +6,7 @@ struct user_credential
 {
     char user_name[8];
     uint8_t password[16];
+    uint8_t usr_type;
     user_credential *next;
 };
 

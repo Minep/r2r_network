@@ -12,6 +12,11 @@ void node_list_init()
     nodes = malloc(sizeof(r2r_node));
 }
 
+r2r_node* get_node_list()
+{
+    return nodes;
+}
+
 void add_new_node(ip_addr_t ip, uint8_t *mac_addr, uint32_t hash)
 {
     r2r_node* node = malloc(sizeof(r2r_node));

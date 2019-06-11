@@ -1,15 +1,17 @@
 #define PORT_R2R 8086
 
+typedef struct netbuf netbuf;
+typedef struct netconn netconn;
 
-typedef struct pkt_b pkt_b;
 /* A packet block */
-struct pkt_b{
+typedef struct pkt_b{
     ip_addr_t ip_address;
     uint16_t port;
     header_transport* transport;
     uint8_t* data;
     size_t length_of_buff;
-};
+}pkt_b;
+
 void init_connection();
 void set_localforward_handler(void* func);
 void set_incoming_handler(void* func);
