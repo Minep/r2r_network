@@ -21,6 +21,7 @@ char* PSWD_AP;
 
 wifi_config_t wifi_config_ap;
 wifi_config_t wifi_config_sta;
+wifi_mode_t current_mode;
 
 void r2r_wifi_init(char* ssid_sta,char* pswd_sta, char* ssid_ap,char* pswd_ap)
 {
@@ -38,7 +39,7 @@ EventGroupHandle_t wifi_evt_handler_get(void)
 void wifi_begin(wifi_mode_t mode, void* event)
 {
     wifi_event_group = xEventGroupCreate();
-
+    current_mode = mode;
     tcpip_adapter_init();
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -94,6 +95,28 @@ void wifi_begin(wifi_mode_t mode, void* event)
 void wifi_try_connect(void)
 {
     esp_wifi_connect();
+}
+
+wifi_mode_t get_mode()
+{
+    return current_mode;
+}
+
+tcpip_adapter_ip_info_t* get_ip_info()
+{
+    tcpip_adapter_ip_info_t *ipinfo = NULL;
+    ESP_ERROR_CHECK_WITHOUT_ABORT(tcpip_adapter_get_ip_info(
+                                    (current_mode == WIFI_MODE_APSTA ? 
+                                        TCPIP_ADAPTER_IF_MAX : current_mode - 1),
+                                    ipinfo));  
+    return ipinfo;  
+}
+
+uint8_t* get_mac()
+{
+    uint8_t* mac = malloc(6);
+    esp_wifi_get_mac(current_mode,mac);
+    return mac;
 }
 
 void wifi_disconnect(void)

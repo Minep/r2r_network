@@ -32,8 +32,6 @@
 #define NEED_NEGOTIATION 0xff
 #define NEGOTIATED 0x00
 
-#define USR_TYPE_PEERS 0x00
-#define USR_TYPE_USERS 0xff
 
 #define SESSION_KEY_LEN 128
 
@@ -104,6 +102,7 @@ struct auth_header
     uint8_t usr_type;
     uint32_t hash;
     int counter;
+    int uncertain;
 };
 
 struct verif_header

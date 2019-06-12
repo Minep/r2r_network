@@ -19,6 +19,7 @@
 #include "include/network.h"
 #include "include/utils.h"
 #include "include/node_list.h"
+#include "include/packet_buffer.h"
 
 
 #define WIFI_SSID "Canterlot Beacon 2\0"
@@ -30,6 +31,8 @@
 const int WIFI_CONNECTED_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
 const char* TAG = "R2R_MAIN";
+const char* TAG_PKT = "R2R_PKT_PROC";
+
 /*
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -66,8 +69,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 }
 */
 
-r2r_node* device_nodes;
-TaskHandle_t handler;
+TaskHandle_t handler_udp_listen, handler_pkt_process;
 
 static int s_retry_num = 0;
 static void event_handler(void* arg, esp_event_base_t event_base, 
@@ -123,17 +125,53 @@ void incoming_pkt_handler(pkt_b* packet)
     //send_msg(packet->data,packet->length_of_buff,packet->ip_address);
 }
 
+void pkt_process_task()
+{
+    while (1)
+    {
+        if(get_items_count()>0)
+        {
+            pkt_b* packet = buffer_get();
+            ESP_LOGI(TAG_PKT,"Packet fetched from buffer! remaining %i packet(s)",get_items_count());
+            uint8_t chl_type= GET_TAG(packet->transport->info_tag,INFOTAG_CHLTYPE_MASK,CHLTYPE_BITS);
+            switch (chl_type)
+            {
+                // 开始Hash的群体校验
+                case CHLTYPE_VERIF:
+                    break;
+                // 对一个用户凭据进行认证
+                case CHLTYPE_AUTH:
+                    break;
+                // 获取子节点发过来的身份信息
+                case CHLTYPE_CONFIRM:
+                
+                    break;
+                default:
+                    incoming_pkt_handler(packet);
+                    break;
+            }
+            free(packet->transport);
+            free(packet->data);
+            free(packet);
+        }
+        //ESP_LOGI(TAG_PKT,"Fetch the packet in buffer after 50 ms....");
+        vTaskDelay(50/portTICK_PERIOD_MS);
+    }
+    
+}
+
 void initialize()
 {
     r2r_wifi_init(WIFI_SSID,WIFI_PSWD,ESP_AP_SSID,ESP_AP_PSWD);
     wifi_begin(WIFI_MODE_STA,&event_handler);
+    init_pkt_queue(10);
     r2r_init();
     init_connection();
     node_list_init();
     set_incoming_handler(&incoming_pkt_handler);
 
-    handler = r2r_net_listen_start();
-    device_nodes = get_node_list();
+    handler_udp_listen = r2r_net_listen_start();
+    xTaskCreate(&pkt_process_task,"PKT_PROCESS",5000,NULL,1,&handler_pkt_process);
 }
 
 void app_main()

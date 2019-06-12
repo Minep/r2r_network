@@ -9,12 +9,12 @@ user_credential *credentials;
 
 int current_node_count = 0;
 
-void node_list_init()
+void credential_list_init()
 {
     credentials = malloc(sizeof(user_credential));
 }
 
-void add_new_node(char* usr_name, uint8_t *password)
+void add_new_cred(char* usr_name, uint8_t *password, uint8_t usr_type)
 {
     user_credential* credential = malloc(sizeof(user_credential));
     memcpy(&(credential->password),password,16);
@@ -26,12 +26,12 @@ void add_new_node(char* usr_name, uint8_t *password)
     }
     else
     {
-        find_avaliable()->next = credential;
+        find_avaliable_cred()->next = credential;
     }
     current_node_count++;
 }
 
-user_credential* find_avaliable()
+user_credential* find_avaliable_cred()
 {
     user_credential* ptr = credentials;
     while(ptr->next!=NULL){
@@ -40,10 +40,10 @@ user_credential* find_avaliable()
     return ptr;
 }
 
-void delete_node(char *user_name)
+void delete_cred(char *user_name)
 {
     user_credential *this_node, *prev_node;
-    if(find_node(user_name, &prev_node, &this_node))
+    if(find_cred(user_name, &prev_node, &this_node))
     {
         prev_node->next = this_node->next;
         free(this_node);
@@ -51,7 +51,7 @@ void delete_node(char *user_name)
     }
 }
 
-bool find_node(char *user_name, user_credential **prev, user_credential **this_node)
+bool find_cred(char *user_name, user_credential **prev, user_credential **this_node)
 {
     user_credential* ptr = credentials;
     user_credential* find = NULL;
@@ -72,14 +72,18 @@ bool find_node(char *user_name, user_credential **prev, user_credential **this_n
     return find != NULL;
 }
 
-bool find_node_s(char *user_name)
+bool find_cred_s(char *user_name, user_credential **cred_ptr)
 {
     user_credential* ptr = credentials;
     bool find = false;
     while(ptr->next!=NULL && !find)
     {
         find = memcmp(&(ptr->user_name),user_name,8) == 0;
-        ptr = ptr->next;
+        if(!find) ptr = ptr->next;
+    }
+    if(cred_ptr!=NULL)
+    {
+        *cred_ptr = ptr;
     }
     return find;
 }
@@ -88,18 +92,23 @@ bool find_node_s(char *user_name)
  * 该方法将会释放 node_list 所占用的所有的空间。
  * 如果之后还想继续使用 node_list 的话，请重新调用 node_list_init 方法。
  */
-void free_all_node(user_credential* base_node)
+void free_all_creds()
+{
+    free_all_creds_r(credentials);
+    current_node_count=0;
+}
+
+void free_all_creds_r(user_credential* base_node)
 {
     if(base_node == NULL)
     {
         return;
     }
-    free_all_node(base_node->next);
+    free_all_creds_r(base_node->next);
     free(base_node);
-    current_node_count=0;
 }
 
-uint8_t* node_list_to_byte(size_t *len)
+uint8_t* cred_list_to_byte(size_t *len)
 {
     if(current_node_count==0){
         return NULL;
@@ -120,14 +129,15 @@ uint8_t* node_list_to_byte(size_t *len)
     return data;
 }
 
-void byte_to_node_list(uint8_t *data,size_t size_of_data)
+void byte_to_cred_list(uint8_t *data,size_t size_of_data)
 {
     if(data == NULL) return;
     char *user_name = malloc(8);
     uint8_t *password = malloc(16);
+    uint8_t type = 0;
     size_t length = size_of_data;
     if(credentials==NULL){
-        node_list_init();
+        credential_list_init();
     }
     while(length>0)
     {
@@ -135,7 +145,9 @@ void byte_to_node_list(uint8_t *data,size_t size_of_data)
         length -= 8;
         memcpy(password, data + (size_of_data - length), 16);
         length -= 16;
-        add_new_node(user_name,password);
+        memcpy(&type,data + (size_of_data - length), 1);
+        length -= 1;
+        add_new_cred(user_name,password,type);
     }
     free(user_name);
     free(password);

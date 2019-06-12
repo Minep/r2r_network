@@ -10,6 +10,7 @@
 
 #include "include/r2r.h"
 #include "include/network.h"
+#include "include/packet_buffer.h"
 
 #define ENTERPRISE_OPT 1
 
@@ -80,8 +81,6 @@ void udp_loop()
             uint8_t* data = get_buffer_data(buffer,&length);
             header_transport *transport_h;
             get_transport_header(data,&transport_h);
-            uint8_t pkt_type= GET_TAG(transport_h->info_tag,INFOTAG_PKTTYPE_MASK,PKTTYPE_BITS);
-            uint8_t chl_type= GET_TAG(transport_h->info_tag,INFOTAG_CHLTYPE_MASK,CHLTYPE_BITS);
             
             pkt_b* packet = malloc(sizeof(pkt_b));
             packet->ip_address = buffer->addr;
@@ -97,37 +96,12 @@ void udp_loop()
                     新的节点按照用户加入R2R网络中的那样的认证流程来认证，获取共享的密钥。
                 当然，时间有限，所以上述问题暂不考虑，即忽略节点的认证。只考虑用户的认证。
              */
-
             //这里，以后可以搞收费的企业版，可以得到显著的速度提升。
 #if ENTERPRISE_OPT == 0
             vTaskDelay(8000 / portTICK_PERIOD_MS);
 #endif
-            //考虑使用消息列队建立缓冲区，使得监听能够继续进行，而不用等待包处理函数的返回。
-            switch (pkt_type)
-            {
-                case PKTTYPE_INCOMING:
-                    switch (chl_type)
-                    {
-                        // 开始Hash的群体校验
-                        case CHLTYPE_VERIF:
-                            break;
-                        // 对一个用户凭据进行认证
-                        case CHLTYPE_AUTH:
-                            break;
-                        default:
-                            if(pkt_incoming_func!=NULL)
-                                (*pkt_incoming_func)(packet);
-                            break;
-                    }
-                    break;
-                case PKTTYPE_FORWARD:
-                    if(pkt_local_forward_func!=NULL){
-                        (*pkt_local_forward_func)(packet);
-                    }
-                    break;
-                default:
-                    break;
-            }            
+            buffer_add(*packet);
+            free(packet);
         }
         else
         {

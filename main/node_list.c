@@ -2,6 +2,7 @@
 #include "lwip/api.h"
 #include "lwip/sys.h"
 #include "include/node_list.h"
+#include "freertos/FreeRTOS.h"
 
 r2r_node* nodes;
 
@@ -17,7 +18,12 @@ r2r_node* get_node_list()
     return nodes;
 }
 
-void add_new_node(ip_addr_t ip, uint8_t *mac_addr, uint32_t hash)
+int get_node_count()
+{
+    return current_node_count;
+}
+
+void add_new_node(ip4_addr_t ip, uint8_t *mac_addr, uint32_t hash)
 {
     r2r_node* node = malloc(sizeof(r2r_node));
     node->hash_record=hash;
@@ -30,12 +36,12 @@ void add_new_node(ip_addr_t ip, uint8_t *mac_addr, uint32_t hash)
     }
     else
     {
-        find_avaliable()->next = node;
+        find_avaliable_node()->next = node;
     }
     current_node_count++;
 }
 
-r2r_node* find_avaliable()
+r2r_node* find_avaliable_node()
 {
     r2r_node* ptr = nodes;
     while(ptr->next!=NULL){
@@ -44,7 +50,7 @@ r2r_node* find_avaliable()
     return ptr;
 }
 
-void delte_node(uint8_t *mac_addr)
+void delete_node(uint8_t *mac_addr)
 {
     r2r_node *this_node, *prev_node;
     if(find_node(mac_addr, &prev_node, &this_node))
@@ -76,15 +82,16 @@ bool find_node(uint8_t *mac_addr, r2r_node **prev, r2r_node **this_node)
     return find != NULL;
 }
 
-bool find_node_s(uint8_t *mac_addr)
+bool find_node_s(uint8_t *mac_addr, r2r_node **node_ptr)
 {
     r2r_node* ptr = nodes;
     bool find = false;
     while(ptr->next!=NULL && !find)
     {
         find = memcmp(&(ptr->mac_addr),mac_addr,6) == 0;
-        ptr = ptr->next;
+        if(!find) ptr = ptr->next;
     }
+    *node_ptr = ptr;
     return find;
 }
 
@@ -92,15 +99,20 @@ bool find_node_s(uint8_t *mac_addr)
  * 该方法将会释放 node_list 所占用的所有的空间。
  * 如果之后还想继续使用 node_list 的话，请重新调用 node_list_init 方法。
  */
-void free_all_node(r2r_node* base_node)
+void free_all_node()
+{
+    free_all_node_r(nodes);
+    current_node_count=0;
+}
+
+void free_all_node_r(r2r_node* base_node)
 {
     if(base_node == NULL)
     {
         return;
     }
-    free_all_node(base_node->next);
+    free_all_node_r(base_node->next);
     free(base_node);
-    current_node_count=0;
 }
 
 uint8_t* node_list_to_byte(size_t *len)
@@ -130,8 +142,8 @@ void byte_to_node_list(uint8_t *data,size_t size_of_data)
     uint8_t *mac_addr = malloc(6);
     uint32_t *hash_record = malloc(4);
     size_t length = size_of_data;
-    ip_addr_t *ip_padding = malloc(sizeof(ip_addr_t));
-    memset(ip_padding,0,sizeof(ip_addr_t));
+    ip4_addr_t *ip_padding = malloc(sizeof(ip4_addr_t));
+    memset(ip_padding,0,sizeof(ip4_addr_t));
     if(nodes==NULL){
         node_list_init();
     }
