@@ -17,24 +17,10 @@
 netconn *connection;
 
 
-
-void (*pkt_local_forward_func)(pkt_b*) = NULL;
-void (*pkt_incoming_func)(pkt_b*) = NULL;
-
 void init_connection()
 {
     connection = netconn_new(NETCONN_UDP);
     netconn_bind(connection,NULL,8086);
-}
-
-void set_localforward_handler(void* func)
-{
-    pkt_local_forward_func=func;
-}
-
-void set_incoming_handler(void* func)
-{
-    pkt_incoming_func=func;
 }
 
 uint8_t* get_buffer_data(netbuf *buffer,size_t *len)
@@ -110,14 +96,18 @@ void udp_loop()
     }
 }
 
-err_t send_msg(void* data, size_t data_len, ip_addr_t destination)
+err_t send_msg(void* data, size_t data_len, ip4_addr_t destination)
 {
     struct netbuf *buffer = netbuf_new();
+    ip_addr_t *ip = calloc(sizeof(ip_addr_t),1);
+    ip->u_addr.ip4 = destination;
+    ip->type = IPADDR_TYPE_V4;
     netbuf_alloc(buffer,data_len);
     memcpy(buffer->p->payload,data,data_len);
     err_t status;
-    status=netconn_sendto(connection,buffer,&destination,PORT_R2R);
+    status=netconn_sendto(connection,buffer,ip,PORT_R2R);
     netbuf_delete(buffer);
+    free(ip);
     return status;
 }
 

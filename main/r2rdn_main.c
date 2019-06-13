@@ -9,7 +9,6 @@
 #include "esp_log.h"
 
 #include "lwip/err.h"
-#include "lwip/sockets.h"
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
@@ -20,58 +19,25 @@
 #include "include/utils.h"
 #include "include/node_list.h"
 #include "include/packet_buffer.h"
-
-
-#define WIFI_SSID "Canterlot Beacon 2\0"
-#define WIFI_PSWD "ZL2738--FF1725\0"
-#define ESP_AP_SSID "ESP_WIFI_R2R\0"
-#define ESP_AP_PSWD "ESP_WIFI_PWD\0"
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#include "include/watchdog.h"
+#include "include/r2rdn.h"
 
 const int WIFI_CONNECTED_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
 const char* TAG = "R2R_MAIN";
 const char* TAG_PKT = "R2R_PKT_PROC";
 
-/*
-static esp_err_t event_handler(void *ctx, system_event_t *event)
-{
-    switch (event->event_id)
-    {
-    case SYSTEM_EVENT_STA_START:
-        esp_wifi_connect();
-        break;
-    case SYSTEM_EVENT_STA_CONNECTED:
-        printf("Connected");
-        tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_AP);
-        break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-        printf("ip: %s", ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
-        xEventGroupSetBits(wifi_evt_handler_get(), IPV4_GOTIP_BIT);
-        break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        esp_wifi_connect();
-        xEventGroupClearBits(wifi_evt_handler_get(), IPV4_GOTIP_BIT);
-        xEventGroupClearBits(wifi_evt_handler_get(), IPV6_GOTIP_BIT);
-        break;
-    case SYSTEM_EVENT_AP_STACONNECTED:
-        printf("Device connected");
-        wifi_event_ap_staconnected_t* staevent = &event->event_info.sta_connected;
-        printf("MAC:"MACSTR,MAC2STR(staevent->mac));
-        break;
-    case SYSTEM_EVENT_AP_STADISCONNECTED:
-        printf("Device disconnected");
-        break;
-    default:
-        break;
-    }
-    return ESP_OK;
-}
-*/
-
 TaskHandle_t handler_udp_listen, handler_pkt_process;
 
 static int s_retry_num = 0;
+
+void app_main()
+{
+    flash_init();
+    initialize();
+    ESP_LOGW(TAG,"The R2R protocol is running, port listening: %i",PORT_R2R);
+}
+
 static void event_handler(void* arg, esp_event_base_t event_base, 
                                 int32_t event_id, void* event_data)
 {
@@ -143,8 +109,18 @@ void pkt_process_task()
                 case CHLTYPE_AUTH:
                     break;
                 // 获取子节点发过来的身份信息
-                case CHLTYPE_CONFIRM:
-                
+                case CHLTYPE_CONFIRM :
+                    {
+                        uint32_t hash = 0;
+                        hash = retrive_hash(packet->data);
+                        if(!find_node_s(packet->transport->mac_src,NULL))
+                        {
+                            add_node(packet->transport->ipv4_src,packet->transport->mac_src,hash);
+                            // Notify other nodes
+                            tcpip_adapter_ip_info_t *ipinfo = get_ip_info();
+                            notify_all_nodes(&send_msg,ipinfo->ip,get_mac());
+                        }
+                    }
                     break;
                 default:
                     incoming_pkt_handler(packet);
@@ -167,16 +143,38 @@ void initialize()
     init_pkt_queue(10);
     r2r_init();
     init_connection();
-    node_list_init();
-    set_incoming_handler(&incoming_pkt_handler);
+    call_watchdog();
 
     handler_udp_listen = r2r_net_listen_start();
-    xTaskCreate(&pkt_process_task,"PKT_PROCESS",5000,NULL,1,&handler_pkt_process);
+    xTaskCreate(&pkt_process_task,"PKT_PROCESS",6000,NULL,1,&handler_pkt_process);
+    
+    if(restore_cred_data())
+    {
+        register_new_user("rpby0001","raspberry_pwd_+?",USR_TYPE_PEERS);
+        register_new_user("minep","mypwd00000000",USR_TYPE_USERS);
+        register_new_user("shuozi","mypwd00000000",USR_TYPE_USERS);
+        save_cred_data();
+    }
 }
 
-void app_main()
+void save_cred_data()
 {
-    flash_init();
-    initialize();
-    ESP_LOGW(TAG,"The R2R protocol is running, port listening: %i",PORT_R2R);
+    size_t size = 0;
+    uint8_t *cred_data = get_bytes(CREDENTIAL_LIST,&size);
+    write_data(USR_CREDS_STORAGE,cred_data,size);
+    free(cred_data);
+}
+
+bool restore_cred_data()
+{
+    uint8_t *data;
+    size_t len = 0;
+    if(read_data(USR_CREDS_STORAGE, &data, &len) == ERR_OK)
+    {
+        if(data!=NULL){
+            set_bytes(CREDENTIAL_LIST,data,len);
+            return true;
+        }
+    }
+    return false;
 }

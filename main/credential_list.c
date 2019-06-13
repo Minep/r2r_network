@@ -7,20 +7,20 @@
 
 user_credential *credentials;
 
-int current_node_count = 0;
+int current_creds_count = 0;
 
 void credential_list_init()
 {
     credentials = malloc(sizeof(user_credential));
 }
 
-void add_new_cred(char* usr_name, uint8_t *password, uint8_t usr_type)
+void add_new_cred(char* usr_name, char *password, uint8_t usr_type)
 {
     user_credential* credential = malloc(sizeof(user_credential));
     memcpy(&(credential->password),password,16);
     memcpy(&(credential->user_name),usr_name,8);
     credential->next=NULL;
-    if(current_node_count==0){
+    if(current_creds_count==0){
         memmove(credentials,credential,sizeof(user_credential));
         free(credential);
     }
@@ -28,13 +28,13 @@ void add_new_cred(char* usr_name, uint8_t *password, uint8_t usr_type)
     {
         find_avaliable_cred()->next = credential;
     }
-    current_node_count++;
+    current_creds_count++;
 }
 
 user_credential* find_avaliable_cred()
 {
     user_credential* ptr = credentials;
-    while(ptr->next!=NULL){
+    while(ptr!=NULL){
         ptr = ptr->next;
     }
     return ptr;
@@ -47,7 +47,7 @@ void delete_cred(char *user_name)
     {
         prev_node->next = this_node->next;
         free(this_node);
-        current_node_count--;
+        current_creds_count--;
     }
 }
 
@@ -56,7 +56,7 @@ bool find_cred(char *user_name, user_credential **prev, user_credential **this_n
     user_credential* ptr = credentials;
     user_credential* find = NULL;
     user_credential* previous = NULL;
-    while(ptr->next!=NULL && find==NULL)
+    while(ptr!=NULL && find==NULL)
     {
         if(memcmp(&(ptr->user_name),user_name,8) == 0)
         {
@@ -76,7 +76,7 @@ bool find_cred_s(char *user_name, user_credential **cred_ptr)
 {
     user_credential* ptr = credentials;
     bool find = false;
-    while(ptr->next!=NULL && !find)
+    while(ptr!=NULL && !find)
     {
         find = memcmp(&(ptr->user_name),user_name,8) == 0;
         if(!find) ptr = ptr->next;
@@ -95,7 +95,7 @@ bool find_cred_s(char *user_name, user_credential **cred_ptr)
 void free_all_creds()
 {
     free_all_creds_r(credentials);
-    current_node_count=0;
+    current_creds_count=0;
 }
 
 void free_all_creds_r(user_credential* base_node)
@@ -110,10 +110,10 @@ void free_all_creds_r(user_credential* base_node)
 
 uint8_t* cred_list_to_byte(size_t *len)
 {
-    if(current_node_count==0){
+    if(current_creds_count==0){
         return NULL;
     }
-    *len = sizeof(user_credential)*current_node_count;
+    *len = sizeof(user_credential)*current_creds_count;
     uint8_t* data = malloc(*len);
     int pointer_offset = 0;
     if(data == NULL)return NULL;
@@ -133,7 +133,7 @@ void byte_to_cred_list(uint8_t *data,size_t size_of_data)
 {
     if(data == NULL) return;
     char *user_name = malloc(8);
-    uint8_t *password = malloc(16);
+    char *password = malloc(16);
     uint8_t type = 0;
     size_t length = size_of_data;
     if(credentials==NULL){

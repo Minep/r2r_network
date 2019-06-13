@@ -104,11 +104,17 @@ wifi_mode_t get_mode()
 
 tcpip_adapter_ip_info_t* get_ip_info()
 {
-    tcpip_adapter_ip_info_t *ipinfo = NULL;
-    ESP_ERROR_CHECK_WITHOUT_ABORT(tcpip_adapter_get_ip_info(
-                                    (current_mode == WIFI_MODE_APSTA ? 
-                                        TCPIP_ADAPTER_IF_MAX : current_mode - 1),
-                                    ipinfo));  
+    tcpip_adapter_ip_info_t *ipinfo = malloc(sizeof(tcpip_adapter_ip_info_t));
+    tcpip_adapter_if_t mode = TCPIP_ADAPTER_IF_STA;
+    if(current_mode == WIFI_MODE_AP)
+    {
+        mode = TCPIP_ADAPTER_IF_AP;
+    }
+    else if (current_mode == WIFI_MODE_STA)
+    {
+        mode = TCPIP_ADAPTER_IF_STA;
+    }
+    ESP_ERROR_CHECK_WITHOUT_ABORT(tcpip_adapter_get_ip_info(mode,ipinfo));  
     return ipinfo;  
 }
 

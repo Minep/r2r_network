@@ -6,11 +6,14 @@
 #include "freertos/FreeRTOS.h"
 #include "lwip/api.h"
 #include "lwip/sys.h"
+#include "esp_log.h"
 
 #include "include/node_list.h"
 #include "include/credential_list.h"
-#include "include/watchdog.h"
 #include "include/r2r.h"
+#include "include/watchdog.h"
+
+const char *_TAG_WATCHDOG = "Watchdog";
 
 header_auth *pending_auth_header;
 
@@ -33,7 +36,7 @@ void (*auth_proccess_staus_updated)(uint8_t,int,int);
 /* 指示是否需要等待hash不确定的节点返回数据 */
 bool pending = false;
 
-void call_watchdong()
+void call_watchdog()
 {
     node_list_init();
     credential_list_init();
@@ -105,6 +108,18 @@ uint8_t* get_bytes(uint8_t list, size_t *len)
     
 }
 
+void set_bytes(uint8_t list, uint8_t* data, size_t len)
+{
+    if(list == CREDENTIAL_LIST)
+    {
+        byte_to_cred_list(data,len);
+    }
+    else if(list == NODE_LIST)
+    {
+        byte_to_node_list(data,len);
+    }
+}
+
 void add_node(ip4_addr_t ipv4, uint8_t *mac_addr,uint32_t hash)
 {
     r2r_node *found = NULL;
@@ -119,7 +134,7 @@ void add_node(ip4_addr_t ipv4, uint8_t *mac_addr,uint32_t hash)
     }
 }
 
-void update_user_cred(char *user_name,char *new_usr_name,uint8_t *password, uint8_t type)
+void update_user_cred(char *user_name,char *new_usr_name,char *password, uint8_t type)
 {
     user_credential *found = NULL;
     if(find_cred_s(user_name,&found))
@@ -130,13 +145,11 @@ void update_user_cred(char *user_name,char *new_usr_name,uint8_t *password, uint
         if(new_usr_name!=NULL){
             memcpy(&(found->user_name),new_usr_name,8);
         }
-        if(type!=-1){
-            found->usr_type = type;
-        }
+        found->usr_type = type;
     }
 }
 
-void register_new_user(char *usr_name, uint8_t *password, uint8_t type)
+void register_new_user(char *usr_name, char *password, uint8_t type)
 {
     //Check whether name is existed
     if(!find_cred_s(usr_name,NULL))
@@ -151,7 +164,7 @@ void proceed_auth(header_auth *auth_header_, uint32_t hash_of_sender, uint64_t *
     r2r_node *found_node = NULL;
     if(find_cred_s(&(auth_header_->usr_id),&found))
     {
-        if(memcmp(&(found->password),&(auth_header_->usr_pwd),16) == 0 &&
+        if(memcmp((void*)&(found->password),(void*)&(auth_header_->usr_pwd),16) == 0 &&
            found->usr_type == auth_header_->usr_type)
         {
             auth_header_->counter++;
@@ -207,3 +220,50 @@ void hash_verif_complete(header_verif *header_verif_)
     }
 }
 
+void notify_all_nodes(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_t localIP, uint8_t *localmac)
+{
+    size_t len_dat=0;
+    uint8_t *table_dat = node_list_to_byte(&len_dat);
+    uint8_t infotag = 0, opt = 0;
+
+    infotag = SET_TAG(infotag,PRORITY_GENERAL,INFOTAG_PRORITY_MASK,PRORITY_BITS);
+    infotag = SET_TAG(infotag,PKTTYPE_INCOMING,INFOTAG_PKTTYPE_MASK,PKTTYPE_BITS);
+    infotag = SET_TAG(infotag,CHLTYPE_GENERAL,INFOTAG_CHLTYPE_MASK,CHLTYPE_BITS);
+
+    opt = SET_OPT(opt,R2R_OPTS_UPDATE_NLIST,BIT_SET);
+    opt = SET_OPT(opt,R2R_OPTS_ANNEXDATA,BIT_SET);
+
+    init_packet(CHLTYPE_GENERAL);
+    ip4_addr_t *padding = calloc(sizeof(ip4_addr_t),1);
+    header_transport *h_tr = create_tr_header(infotag, localIP, *padding, localmac, NULL);
+    header_encryption *henc = create_enc_header(ENCTAG_METHOD_AES);
+    header_session *hses = create_ses_header(false);
+    r2r_body *rbody = create_r2r_body(opt,NULL,false,0);
+
+    write_content(h_tr,sizeof(header_transport));
+    write_content(henc,sizeof(header_transport));
+    write_content(hses,sizeof(header_transport));
+    write_content(rbody,sizeof(r2r_body));
+    write_content(table_dat,len_dat);
+    prepare_packet();
+
+    r2r_node *node = get_node_list();
+    while(node!=NULL)
+    {
+        h_tr->ipv4_dest = node->ipv4_addr;
+        memcpy(&(h_tr->mac_dest),&(node->mac_addr),6);
+        seek(0);
+        write_content(h_tr,sizeof(header_transport));
+        ESP_LOGI(_TAG_WATCHDOG,"syncing route table with %s",ip4addr_ntoa(&(node->ipv4_addr)));
+        ESP_LOGI(_TAG_WATCHDOG,"table size : %i",get_size_allocated());
+        (*_msg_sender)(get_packet(),get_size_allocated(),node->ipv4_addr);
+        node = node->next;
+    }
+    deinit_packet();
+    free(h_tr);
+    free(henc);
+    free(hses);
+    free(rbody);
+    free(table_dat);
+    free(padding);
+}

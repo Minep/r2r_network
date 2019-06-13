@@ -16,7 +16,7 @@ void delete_node(uint8_t *mac_addr);
 bool find_node(uint8_t *mac_addr, r2r_node **prev, r2r_node **this_node);
 bool find_node_s(uint8_t *mac_addr, r2r_node **node_ptr);
 void free_all_node();
-void free_all_node_r(r2r_node* base_node);
+void tranverse_nodes(void (*task)(r2r_node*));
 uint8_t* node_list_to_byte(size_t *len);
 void byte_to_node_list(uint8_t *data,size_t size_of_data);
 int get_node_count();

@@ -3,6 +3,7 @@
 
 #define USR_TYPE_PEERS 0x00
 #define USR_TYPE_USERS 0xff
+#define USR_TYPE_ADMIN 0xfe
 
 
 typedef struct user_credential user_credential;
@@ -10,13 +11,13 @@ typedef struct user_credential user_credential;
 struct user_credential
 {
     char user_name[8];
-    uint8_t password[16];
+    char password[16];
     uint8_t usr_type;
     user_credential *next;
 };
 
 void credential_list_init();
-void add_new_cred(char* usr_name, uint8_t *password,uint8_t usr_type);
+void add_new_cred(char* usr_name, char *password, uint8_t usr_type);
 user_credential* find_avaliable_cred();
 void delete_cred(char *user_name);
 bool find_cred(char *user_name, user_credential **prev, user_credential **this_node);

@@ -13,9 +13,7 @@ typedef struct pkt_b{
 }pkt_b;
 
 void init_connection();
-void set_localforward_handler(void* func);
-void set_incoming_handler(void* func);
 uint8_t* get_buffer_data(struct netbuf *buffer,size_t *len);
 TaskHandle_t r2r_net_listen_start();
 void udp_loop();
-err_t send_msg(void* data, size_t data_len, ip_addr_t destination);
+err_t send_msg(void* data, size_t data_len, ip4_addr_t destination);

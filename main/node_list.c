@@ -10,7 +10,7 @@ int current_node_count = 0;
 
 void node_list_init()
 {
-    nodes = malloc(sizeof(r2r_node));
+    nodes = calloc(sizeof(r2r_node),1);
 }
 
 r2r_node* get_node_list()
@@ -25,7 +25,7 @@ int get_node_count()
 
 void add_new_node(ip4_addr_t ip, uint8_t *mac_addr, uint32_t hash)
 {
-    r2r_node* node = malloc(sizeof(r2r_node));
+    r2r_node* node = calloc(sizeof(r2r_node),1);
     node->hash_record=hash;
     memcpy(&(node->mac_addr),mac_addr,6);
     node->ipv4_addr = ip;
@@ -44,7 +44,7 @@ void add_new_node(ip4_addr_t ip, uint8_t *mac_addr, uint32_t hash)
 r2r_node* find_avaliable_node()
 {
     r2r_node* ptr = nodes;
-    while(ptr->next!=NULL){
+    while(ptr!=NULL){
         ptr = ptr->next;
     }
     return ptr;
@@ -66,7 +66,7 @@ bool find_node(uint8_t *mac_addr, r2r_node **prev, r2r_node **this_node)
     r2r_node* ptr = nodes;
     r2r_node* find = NULL;
     r2r_node* previous = NULL;
-    while(ptr->next!=NULL && find==NULL)
+    while(ptr!=NULL && find==NULL)
     {
         if(memcmp(&(ptr->mac_addr),mac_addr,6) == 0)
         {
@@ -86,23 +86,33 @@ bool find_node_s(uint8_t *mac_addr, r2r_node **node_ptr)
 {
     r2r_node* ptr = nodes;
     bool find = false;
-    while(ptr->next!=NULL && !find)
+    while(ptr!=NULL && !find)
     {
         find = memcmp(&(ptr->mac_addr),mac_addr,6) == 0;
         if(!find) ptr = ptr->next;
     }
-    *node_ptr = ptr;
+    if(find && node_ptr!=NULL){
+       *node_ptr = ptr; 
+    }
+    
+    
     return find;
 }
 
-/*
- * 该方法将会释放 node_list 所占用的所有的空间。
- * 如果之后还想继续使用 node_list 的话，请重新调用 node_list_init 方法。
- */
-void free_all_node()
+void tranverse_nodes_r(void (*task)(r2r_node*), r2r_node *base)
 {
-    free_all_node_r(nodes);
-    current_node_count=0;
+    if(base == NULL)
+    {
+        return;
+    }
+    (*task)(base);
+    tranverse_nodes_r(task, base->next);
+}
+
+
+void tranverse_nodes(void (*task)(r2r_node*))
+{
+    tranverse_nodes_r(task,nodes);
 }
 
 void free_all_node_r(r2r_node* base_node)
@@ -113,6 +123,16 @@ void free_all_node_r(r2r_node* base_node)
     }
     free_all_node_r(base_node->next);
     free(base_node);
+}
+
+/*
+ * 该方法将会释放 node_list 所占用的所有的空间。
+ * 如果之后还想继续使用 node_list 的话，请重新调用 node_list_init 方法。
+ */
+void free_all_node()
+{
+    free_all_node_r(nodes);
+    current_node_count=0;
 }
 
 uint8_t* node_list_to_byte(size_t *len)
