@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "include/utils.h"
+#include <stdlib.h>
+
 
 
 uint32_t fnv1a_hash(const unsigned char* cp)
@@ -36,4 +38,19 @@ char *int2bin(uint8_t a, char *buffer, int buf_size) {
     }
 
     return buffer;
+}
+
+uint8_t* generate_session_key()
+{
+    uint8_t *key = malloc(32);
+    for(uint8_t i=0;i<32;i++)
+    {
+        *(key+i) = generate_rand();
+    }
+    return key;
+}
+
+uint8_t generate_rand()
+{
+    return (rand() % 256);
 }

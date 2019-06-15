@@ -7,6 +7,7 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
@@ -21,6 +22,7 @@
 #include "include/packet_buffer.h"
 #include "include/watchdog.h"
 #include "include/r2rdn.h"
+#include "include/gpio_helper.h"
 
 const int WIFI_CONNECTED_BIT = BIT0;
 const int IPV6_GOTIP_BIT = BIT1;
@@ -35,6 +37,9 @@ void app_main()
 {
     flash_init();
     initialize();
+    set_level(18,GPIO_HIGH);
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+    set_level(18,GPIO_LOW);
     ESP_LOGW(TAG,"The R2R protocol is running, port listening: %i",PORT_R2R);
 }
 
@@ -107,6 +112,31 @@ void pkt_process_task()
                     break;
                 // 对一个用户凭据进行认证
                 case CHLTYPE_AUTH:
+                    if(find_node_s(packet->transport->mac_src,NULL))
+                    {
+                        header_auth *ah = malloc(sizeof(header_auth));
+                        memcpy(ah,packet->data+sizeof(header_transport),sizeof(header_auth));
+                        ESP_LOGD(TAG,"Credential recieved from %s",ipaddr_ntoa(&(packet->ip_address)));
+                        ESP_LOGD(TAG,"User Name: %s",ah->usr_id);
+                        ESP_LOGD(TAG,"Password: %s",ah->usr_pwd);
+                        ESP_LOGD(TAG,"User Type: 0x%02x",ah->usr_type);
+                        if(verif_cred(&(ah->usr_id),&(ah->usr_pwd),ah->usr_type))
+                        {
+                            ESP_LOGI(TAG,"Verification sucessed");
+                            ESP_LOGI(TAG,"Sharing session key");
+                            ESP_LOGI(TAG,"Session Key : ");
+                            print_formated_hex(get_session_key(),32,16);
+                            //tcpip_adapter_ip_info_t *ipinfo = get_ip_info();
+                            //sync_route_table(&send_msg,ipinfo->ip,get_mac(),true,packet->transport->ipv4_src);
+                            tcpip_adapter_ip_info_t *ipinfo = get_ip_info();
+                            sync_session_key(&send_msg,get_session_key(),ipinfo->ip,get_mac(),false,&(packet->transport->ipv4_src));
+                        }
+                        else
+                        {
+                            ESP_LOGI(TAG,"Verification fail");
+                            //ESP_LOGI(TAG,"Sharing session key");
+                        }
+                    }
                     break;
                 // 获取子节点发过来的身份信息
                 case CHLTYPE_CONFIRM :
@@ -118,9 +148,12 @@ void pkt_process_task()
                             add_node(packet->transport->ipv4_src,packet->transport->mac_src,hash);
                             // Notify other nodes
                             tcpip_adapter_ip_info_t *ipinfo = get_ip_info();
-                            notify_all_nodes(&send_msg,ipinfo->ip,get_mac());
+                            sync_route_table(&send_msg,ipinfo->ip,get_mac(),true,NULL);              
                         }
                     }
+                    break;
+                // 会话密钥同步
+                case CHLTYPE_KEY_SYNCING:
                     break;
                 default:
                     incoming_pkt_handler(packet);
@@ -139,22 +172,28 @@ void pkt_process_task()
 void initialize()
 {
     r2r_wifi_init(WIFI_SSID,WIFI_PSWD,ESP_AP_SSID,ESP_AP_PSWD);
-    wifi_begin(WIFI_MODE_STA,&event_handler);
+    wifi_begin(WIFI_MODE_AP,&event_handler);
+    
+    init_gpio(NULL);
+    set_mode(18, GPIO_MODE_OUTPUT,false,0);
+
     init_pkt_queue(10);
     r2r_init();
+    set_session_key(generate_session_key());
     init_connection();
     call_watchdog();
 
     handler_udp_listen = r2r_net_listen_start();
-    xTaskCreate(&pkt_process_task,"PKT_PROCESS",6000,NULL,1,&handler_pkt_process);
+    xTaskCreate(&pkt_process_task,"PKT_PROCESS",4096,NULL,1,&handler_pkt_process);
     
-    if(restore_cred_data())
-    {
-        register_new_user("rpby0001","raspberry_pwd_+?",USR_TYPE_PEERS);
-        register_new_user("minep","mypwd00000000",USR_TYPE_USERS);
-        register_new_user("shuozi","mypwd00000000",USR_TYPE_USERS);
-        save_cred_data();
-    }
+    register_new_user("rpby001","raspberry_pwd_+",USR_TYPE_PEERS);
+    //register_new_user("minep","mypwd00000000",USR_TYPE_USERS);
+    //register_new_user("shuozi","mypwd00000000",USR_TYPE_USERS);
+    //if(!restore_cred_data())
+    //{
+        
+        //save_cred_data();
+    //}
 }
 
 void save_cred_data()

@@ -16,7 +16,7 @@ void credential_list_init()
 
 void add_new_cred(char* usr_name, char *password, uint8_t usr_type)
 {
-    user_credential* credential = malloc(sizeof(user_credential));
+    user_credential* credential = calloc(sizeof(user_credential),1);
     memcpy(&(credential->password),password,16);
     memcpy(&(credential->user_name),usr_name,8);
     credential->next=NULL;
@@ -34,10 +34,12 @@ void add_new_cred(char* usr_name, char *password, uint8_t usr_type)
 user_credential* find_avaliable_cred()
 {
     user_credential* ptr = credentials;
+    user_credential *ptr_ = ptr;
     while(ptr!=NULL){
+        ptr_ = ptr;
         ptr = ptr->next;
     }
-    return ptr;
+    return ptr_;
 }
 
 void delete_cred(char *user_name)
@@ -78,10 +80,10 @@ bool find_cred_s(char *user_name, user_credential **cred_ptr)
     bool find = false;
     while(ptr!=NULL && !find)
     {
-        find = memcmp(&(ptr->user_name),user_name,8) == 0;
+        find = (memcmp(&(ptr->user_name),user_name,8) == 0);
         if(!find) ptr = ptr->next;
     }
-    if(cred_ptr!=NULL)
+    if(find && cred_ptr!=NULL)
     {
         *cred_ptr = ptr;
     }

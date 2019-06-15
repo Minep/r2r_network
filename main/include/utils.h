@@ -14,3 +14,5 @@ void print_formated_hex(uint8_t* data, size_t len, int max_col);
 char *int2bin(uint8_t a, char *buffer, int buf_size);
 //获取本设备的hash码
 uint32_t get_local_hash();
+uint8_t* generate_session_key();
+uint8_t generate_rand();

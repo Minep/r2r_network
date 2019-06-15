@@ -30,6 +30,7 @@
 #define CHLTYPE_AUTH 0x02
 #define CHLTYPE_GENERAL 0x03
 #define CHLTYPE_CONFIRM 0x04
+#define CHLTYPE_KEY_SYNCING 0x05
 
 #define ENCTAG_METHOD_AES 0x00
 #define ENCTAG_METHOD_DES 0x01
@@ -74,6 +75,7 @@ struct r2r_header_transport{
     uint8_t mac_dest[6];
     // Store in big endian
     uint64_t access_marker[2];
+    int pkt_size;
 };
 
 struct r2r_header_encryption{
@@ -128,7 +130,7 @@ void r2r_init();
 void init_packet(uint8_t channel_type);
 int seek(size_t h_offset);
 int write_content(void *content, size_t size_of_added_content);
-void prepare_packet();
+void prepare_packet(bool encryption, uint8_t *replaced_key);
 uint8_t* get_packet();
 size_t get_packet_size();
 void deinit_packet();

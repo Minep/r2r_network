@@ -13,6 +13,7 @@
 #include "include/r2r.h"
 #include "include/watchdog.h"
 
+
 const char *_TAG_WATCHDOG = "Watchdog";
 
 header_auth *pending_auth_header;
@@ -54,6 +55,21 @@ void replace_cred_list(uint8_t* nodelist,size_t len)
     free_all_creds();
     credential_list_init();
     byte_to_node_list(nodelist,len);
+}
+
+bool verif_cred(char *usr_name, char *pwd, uint8_t type)
+{
+    user_credential *cred;
+    if(find_cred_s(usr_name,&cred))
+    {
+        //printf("aaa , %s",cred->password);
+        if(memcmp(pwd,&(cred->password),16) == 0 && 
+           cred->usr_type == type)
+           {
+               return true;
+           }
+    }
+    return false;
 }
 
 void erase_cred_list()
@@ -220,7 +236,8 @@ void hash_verif_complete(header_verif *header_verif_)
     }
 }
 
-void notify_all_nodes(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_t localIP, uint8_t *localmac)
+void sync_route_table(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_t localIP, 
+                            uint8_t *localmac,bool all_node, ip4_addr_t *dest_ip)
 {
     size_t len_dat=0;
     uint8_t *table_dat = node_list_to_byte(&len_dat);
@@ -245,20 +262,35 @@ void notify_all_nodes(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_
     write_content(hses,sizeof(header_transport));
     write_content(rbody,sizeof(r2r_body));
     write_content(table_dat,len_dat);
-    prepare_packet();
+    prepare_packet(true, NULL);
+    uint8_t *packet = get_packet();
+    memcpy(h_tr,packet,sizeof(header_transport));
 
-    r2r_node *node = get_node_list();
-    while(node!=NULL)
+    if(!all_node && dest_ip==NULL)
     {
-        h_tr->ipv4_dest = node->ipv4_addr;
-        memcpy(&(h_tr->mac_dest),&(node->mac_addr),6);
+        h_tr->ipv4_dest = *dest_ip;
+        memcpy(&(h_tr->mac_dest),dest_ip,6);
         seek(0);
         write_content(h_tr,sizeof(header_transport));
-        ESP_LOGI(_TAG_WATCHDOG,"syncing route table with %s",ip4addr_ntoa(&(node->ipv4_addr)));
+        ESP_LOGI(_TAG_WATCHDOG,"syncing route table with %s",ip4addr_ntoa(dest_ip));
         ESP_LOGI(_TAG_WATCHDOG,"table size : %i",get_size_allocated());
-        (*_msg_sender)(get_packet(),get_size_allocated(),node->ipv4_addr);
-        node = node->next;
+        (*_msg_sender)(packet,get_size_allocated(),*dest_ip);
     }
+    else
+    {
+        r2r_node *node = get_node_list();
+        while(node!=NULL)
+        {
+            h_tr->ipv4_dest = node->ipv4_addr;
+            memcpy(&(h_tr->mac_dest),&(node->mac_addr),6);
+            seek(0);
+            write_content(h_tr,sizeof(header_transport));
+            ESP_LOGI(_TAG_WATCHDOG,"syncing route table with %s",ip4addr_ntoa(&(node->ipv4_addr)));
+            ESP_LOGI(_TAG_WATCHDOG,"table size : %i",get_size_allocated());
+            (*_msg_sender)(packet,get_size_allocated(),node->ipv4_addr);
+            node = node->next;
+        }
+    } 
     deinit_packet();
     free(h_tr);
     free(henc);
@@ -266,4 +298,29 @@ void notify_all_nodes(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_
     free(rbody);
     free(table_dat);
     free(padding);
+}
+
+void sync_session_key(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),uint8_t *session_key,
+                        ip4_addr_t localIP, 
+                        uint8_t *localmac,bool all_node, ip4_addr_t *dest_ip)
+{
+    uint8_t infotag = 0;
+
+    infotag = SET_TAG(infotag,PRORITY_GENERAL,INFOTAG_PRORITY_MASK,PRORITY_BITS);
+    infotag = SET_TAG(infotag,PKTTYPE_INCOMING,INFOTAG_PKTTYPE_MASK,PKTTYPE_BITS);
+    infotag = SET_TAG(infotag,CHLTYPE_KEY_SYNCING,INFOTAG_CHLTYPE_MASK,CHLTYPE_BITS);
+    ip4_addr_t *padding = calloc(sizeof(ip4_addr_t),1);
+    header_transport *h_tr = create_tr_header(infotag, localIP, *padding, localmac, NULL);
+    header_encryption *henc = create_enc_header(ENCTAG_METHOD_AES);
+    header_session *hses = create_ses_header(false);
+    init_packet(CHLTYPE_KEY_SYNCING);
+    write_content(h_tr,sizeof(header_transport));
+    write_content(henc,sizeof(header_encryption));
+    write_content(hses,sizeof(header_session));
+    prepare_packet(false,NULL);
+    _msg_sender(get_packet(),get_size_allocated(),*dest_ip);
+    free(h_tr);
+    free(henc);
+    free(hses);
+    deinit_packet();
 }

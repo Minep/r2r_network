@@ -53,6 +53,8 @@ void init_packet(uint8_t channel_type)
             case CHLTYPE_VERIF:
                 size_pkt += h_verif_header_size;
                 break;
+            case CHLTYPE_KEY_SYNCING:
+                break;
             default:
                 size_pkt += h_body;
                 break;
@@ -82,10 +84,17 @@ int write_content(void *content, size_t size_of_added_content)
     return 1;
 }
 
-void prepare_packet()
+void prepare_packet(bool encryption, uint8_t *replaced_key)
 {
+    header_transport *htr = malloc(h_trans_size);
+    memcpy(htr,pkt_data,h_trans_size);
+    htr->pkt_size = size_allocated;
+    printf("size allocated : %i\r\n",htr->pkt_size);
+    memcpy(pkt_data,htr,h_trans_size);
+    free(htr);
+
     if(prepared) return;
-    if(session_key == NULL){
+    if((session_key == NULL || replaced_key == NULL) && encryption){
         prepared=true;
         return;
     }
@@ -95,11 +104,15 @@ void prepare_packet()
     header_encryption *henc = malloc(h_enc_size);
     memcpy(henc,pkt_data+h_trans_size,h_enc_size);
     memcpy(plain, pkt_data + size_allocated - plaintxt_size, plaintxt_size);
+
     if(GET_TAG(henc->enc_tag,ENCTAG_METHOD_MASK,1) == ENCTAG_METHOD_AES)
     {
-        aes_key_expansion(session_key,expanded_key);
-        aes_cipher(plain,cipher,expanded_key);
-        memcpy(pkt_data + size_allocated - plaintxt_size,cipher,plaintxt_size);
+        if(encryption)
+        {
+            aes_key_expansion(session_key,expanded_key);
+            aes_cipher(plain,cipher,expanded_key);
+            memcpy(pkt_data + size_allocated - plaintxt_size,cipher,plaintxt_size);
+        }
         henc->fnv32_checksum = fnv1a_hash(cipher);
         prepared = true;
     }
@@ -113,9 +126,11 @@ void prepare_packet()
          * prepared = true;
          */
     }
+    memcpy(pkt_data + h_trans_size,henc,h_enc_size);
     free(plain);
     free(cipher); 
     free(henc);
+    print_formated_hex(pkt_data,size_allocated,16);
 }
 
 uint8_t* get_packet()
@@ -222,7 +237,7 @@ void get_verif_header(uint8_t *data, header_verif **verif)
 header_transport* create_tr_header(uint8_t infotag, ip4_addr_t src_addr, ip4_addr_t dest_addr,
                         uint8_t *mac_src, uint8_t *mac_dest)
 {
-    header_transport* tr_header = malloc(h_trans_size);
+    header_transport* tr_header = calloc(h_trans_size,1);
     tr_header->info_tag = infotag;
     tr_header->ipv4_src = src_addr;
     tr_header->ipv4_dest = dest_addr;
@@ -283,3 +298,4 @@ uint32_t retrive_hash(uint8_t* data)
     memcpy(&hash,data+h_trans_size,4);
     return hash;
 }
+

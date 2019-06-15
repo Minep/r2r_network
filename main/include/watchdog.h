@@ -21,6 +21,7 @@
 void call_watchdog();
 void replace_node_list(uint8_t* nodelist,size_t len);
 void replace_cred_list(uint8_t* nodelist,size_t len);
+bool verif_cred(char *usr_name, char *pwd, uint8_t type);
 void erase_cred_list();
 void erase_node_list();
 void set_auth_result_callback(void *_callback);
@@ -34,4 +35,5 @@ void proceed_auth(header_auth *auth_header_, uint32_t hash_of_sender, uint64_t *
 void auth_completed(header_auth *auth_header_);
 void hash_verif(header_verif *header_verif_, uint32_t hash_of_sender);
 void hash_verif_complete(header_verif *header_verif_);
-void notify_all_nodes(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_t localIP, uint8_t *localmac);
+void sync_route_table(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),ip4_addr_t localIP, uint8_t *localmac,bool all_node, ip4_addr_t *dest_ip);
+void sync_session_key(err_t (*_msg_sender)(uint8_t*,size_t,ip4_addr_t),uint8_t *session_key, ip4_addr_t localIP, uint8_t *localmac,bool all_node, ip4_addr_t *dest_ip);
